@@ -1,0 +1,61 @@
+image: docker:24.0.7
+
+pipelines:
+  branches:
+    DEVOPSOCT-63:
+      - step:
+          name: "Lint Gate"
+          services:
+            - docker
+          script:
+            - apk add --no-cache make git
+            - make lint
+            - echo "Lint check completed"
+ 
+      - step:
+          name: "Build and Push Docker Image"
+          services:
+            - docker
+          script:
+            - apk add --no-cache make
+            - echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
+            - export DOCKER_BUILDKIT=0
+            - make clean || true
+            - make build TAG=$BITBUCKET_COMMIT GRAFANA_IMAGE=$DOCKERHUB_USER/grafana-custom
+            - make push TAG=$BITBUCKET_COMMIT GRAFANA_IMAGE=$DOCKERHUB_USER/grafana-custom
+            - echo "Build and push step success"
+
+      - step:
+          name: "Terraform Plan & Apply (ECS stack)"
+          oidc: true               # Important! Enable OIDC
+          script:
+            # Install awscli, terraform, make
+            - apk add --no-cache aws-cli wget unzip make
+            # Install Terraform binary
+            - wget https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip
+            - unzip terraform_1.6.6_linux_amd64.zip
+            - mv terraform /usr/local/bin/
+
+            # Save Bitbucket OIDC token to temp file
+            - echo "$BITBUCKET_STEP_OIDC_TOKEN" > /tmp/bb.token
+
+            # Set OIDC required environment variables
+            - export AWS_ROLE_ARN="arn:aws:iam::314146318322:role/BitbucketPipelineOIDCRole"
+            - export AWS_WEB_IDENTITY_TOKEN_FILE="/tmp/bb.token"
+            - export AWS_REGION="ap-southeast-2"
+
+            # Validate OIDC identity
+            - echo "Checking AWS identity..."
+            - aws sts get-caller-identity
+
+            # Pass image tag and name variables
+            - export TAG=$BITBUCKET_COMMIT
+            - export GRAFANA_IMAGE_NAME=$DOCKERHUB_USER/grafana-custom
+
+            # Terraform validation, plan & apply
+            - cd terraform_dns_automation
+            - terraform init
+            - terraform validate
+            - terraform plan -var="grafana_image=$GRAFANA_IMAGE_NAME:$TAG"
+            - terraform apply -auto-approve -var="grafana_image=$GRAFANA_IMAGE_NAME:$TAG"
+            - echo "Terraform plan & apply step success"

@@ -1,0 +1,11 @@
+apiVersion: 1
+datasources:
+  - name: CloudWatch
+    type: cloudwatch
+    access: proxy
+    isDefault: true
+    jsonData:
+      authType: credentials
+      profile: default
+      defaultRegion: ap-southeast-2
+      credentialsPath: /usr/share/grafana/.aws/credentials

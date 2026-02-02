@@ -1,0 +1,12 @@
+FROM grafana/grafana:10.4.2
+
+# Copy dashboard provisioning config
+COPY terraform_dns_automation/provisioning/dashboards/dashboard.yaml /etc/grafana/provisioning/dashboards/dashboard.yaml
+COPY terraform_dns_automation/provisioning/dashboards/client-domains-dashboard.json /etc/grafana/provisioning/dashboards/client-domains-dashboard.json
+
+# Copy datasource provisioning config
+COPY terraform_dns_automation/provisioning/datasources/datasource.yaml /etc/grafana/provisioning/datasources/datasource.yaml
+
+# Expose Grafana default port
+EXPOSE 3000
+
